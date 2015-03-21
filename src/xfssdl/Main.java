@@ -63,13 +63,19 @@ public class Main {
 		System.out.println(print);
 
 		for (Entry<String, String> game : games.entrySet()) {
-			System.out.println("Processing game " + game.getValue());
+			System.out.println("Processing game " + game.getKey());
 			// Create the directory
-			File folder = new File(downloadPath + "/" + FileNameCleaner.cleanFileName(game.getValue()));
+			File folder = new File(downloadPath + "/" + FileNameCleaner.cleanFileName(game.getKey()));
 			folder.mkdirs();
 
 			// Get the screenshots page
-			htmlString = getStringForURL(BASE_URL + game.getKey());
+			htmlString = getStringForURL(BASE_URL + game.getValue());
+			
+			// Skip the page if there are no screenshots (poor detection, I know)
+			if(htmlString.contains("There are no")){
+				System.out.println("Skipping game " + game.getKey() + " because it has no screenshots.");
+				continue;
+			}
 
 			// List all the screenshots URLs
 			Pattern patternScreenURL = Pattern.compile("/screenshots/[0-9]+");
