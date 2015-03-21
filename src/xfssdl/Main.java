@@ -114,7 +114,7 @@ public class Main {
 									?"http://screenshot.xfire.com/s/"+ id +"-4.jpg"
 									:"http://video.xfire.com/" + id + ".mp4");
 				ReadableByteChannel rbc = Channels.newChannel(website.openStream());
-				FileOutputStream fos = new FileOutputStream(folder.getAbsolutePath() + "/" + id + ".jpg");
+				FileOutputStream fos = new FileOutputStream(folder.getAbsolutePath() + "/" + id + ("screenshots".equals(profileURLPath)?".jpg":".mp4"));
 				fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
 				fos.close();
 			}
