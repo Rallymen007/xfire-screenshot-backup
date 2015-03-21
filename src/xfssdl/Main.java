@@ -1,9 +1,11 @@
 package xfssdl;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.channels.Channels;
@@ -26,20 +28,44 @@ public class Main {
 
 	private static String username = null;
 	private static String downloadPath = null;
+	private static Boolean screens = true;
+	private static Boolean videos = true;
 
 	public static void main(String[] args) throws Exception {
 		if (!processArgs(args)) {
 			System.err
-					.println("Incorrect parameters\nUsage: java -jar xfssdl.jar -username <username> -path <download path>");
+					.println("Incorrect parameters\n"
+							+ "Usage: java -jar xfssdl.jar -username <username> -path <download path> [-videos (on|off) -screenshots (on|off)]\n"
+							+ "Defaults: downloads both screenshots and videos for the username");
 			System.exit(-1);
 		}
 
 		System.out.println("User: " + username + " Download path: " + downloadPath);
 
-		String htmlString = getStringForURL(BASE_URL + "/users/" + username + "/screenshots");
+		if(screens){
+			downloadScreenshots();
+		}
+		
+		if(videos){
+			downloadVideos();
+		}
+	}
+
+	private static void downloadVideos() throws IOException, InterruptedException, MalformedURLException, FileNotFoundException {
+		doDownload("videos");
+	}
+	
+	private static void downloadScreenshots() throws IOException,
+			InterruptedException, MalformedURLException, FileNotFoundException {
+		doDownload("screenshots");
+	}
+	
+	private static void doDownload(String profileURLPath) throws IOException,
+	InterruptedException, MalformedURLException, FileNotFoundException {
+		String htmlString = getStringForURL(BASE_URL + "/users/" + username + "/" + profileURLPath);
 
 		// regex to match screenshot urls and long names
-		Pattern patternURL = Pattern.compile("/users/" + username + "/games/[A-Za-z0-9]+/screenshots"), 
+		Pattern patternURL = Pattern.compile("/users/" + username + "/games/[A-Za-z0-9]+/" + profileURLPath), 
 				patternTitles = Pattern.compile("<h1>[^\\<]+</h1>");
 		Matcher matcherURL = patternURL.matcher(htmlString), 
 				matcherTitles = patternTitles.matcher(htmlString);
@@ -63,6 +89,12 @@ public class Main {
 		System.out.println(print);
 
 		for (Entry<String, String> game : games.entrySet()) {
+			// Skip the page if there are no screenshots (poor detection, I know)
+			if(htmlString.contains("There are no")){
+				System.out.println("Skipping game " + game.getKey() + " because it has no screenshots.");
+				continue;
+			}
+			
 			System.out.println("Processing game " + game.getKey());
 			// Create the directory
 			File folder = new File(downloadPath + "/" + FileNameCleaner.cleanFileName(game.getKey()));
@@ -70,20 +102,17 @@ public class Main {
 
 			// Get the screenshots page
 			htmlString = getStringForURL(BASE_URL + game.getValue());
-			
-			// Skip the page if there are no screenshots (poor detection, I know)
-			if(htmlString.contains("There are no")){
-				System.out.println("Skipping game " + game.getKey() + " because it has no screenshots.");
-				continue;
-			}
 
 			// List all the screenshots URLs
-			Pattern patternScreenURL = Pattern.compile("/screenshots/[0-9]+");
+			Pattern patternScreenURL = Pattern.compile("/" + profileURLPath +"/[0-9a-z]+");
 			Matcher matcherScreenURL = patternScreenURL.matcher(htmlString);
 
 			while (matcherScreenURL.find()) {
-				String id = matcherScreenURL.group().replaceFirst("/screenshots/", "");
-				URL website = new URL("http://screenshot.xfire.com/s/"+ id +"-4.jpg");
+				String id = matcherScreenURL.group().replaceFirst("/"+ profileURLPath + "/", "");
+				// Download the actual screenshot or video depending on the parameter passed
+				URL website = new URL("screenshots".equals(profileURLPath)
+									?"http://screenshot.xfire.com/s/"+ id +"-4.jpg"
+									:"http://video.xfire.com/" + id + ".mp4");
 				ReadableByteChannel rbc = Channels.newChannel(website.openStream());
 				FileOutputStream fos = new FileOutputStream(folder.getAbsolutePath() + "/" + id + ".jpg");
 				fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
@@ -102,6 +131,12 @@ public class Main {
 					break;
 				case "-path":
 					downloadPath = args[i + 1];
+					break;
+				case "-videos":
+					videos = "on".equals(args[i+1]);
+					break;
+				case "-screens":
+					screens = "on".equals(args[i+1]);
 					break;
 				default:
 					;
