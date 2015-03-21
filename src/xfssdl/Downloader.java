@@ -121,30 +121,38 @@ public class Downloader extends Observable {
 		for (Entry<String, String> game : games.entrySet()) {
 			// Get the screenshots page
 			htmlString = getStringForURL(BASE_URL + game.getValue());
-			
-			// Skip the page if there are no screenshots (poor detection, I know)
-			if(htmlString.contains("There are no")){
-				print("Skipping game " + game.getKey() + " because it has no screenshots.\n");
-				continue;
-			}
-			
-			print("Processing game " + game.getKey() + "\n");
-			// Create the directory
-			File folder = new File(downloadPath + "/" + FileNameCleaner.cleanFileName(game.getKey()));
-			folder.mkdirs();
+			Integer page = 1;
 
-			// List all the screenshots URLs
-			Pattern patternScreenURL = Pattern.compile("/" + profileURLPath +"/[0-9a-z]+");
-			Matcher matcherScreenURL = patternScreenURL.matcher(htmlString);
-
-			while (matcherScreenURL.find()) {
-				String id = matcherScreenURL.group().replaceFirst("/"+ profileURLPath + "/", "");
-				// Download the actual screenshot or video depending on the parameter passed
-				URL website = new URL(downloadURLTemplate.replaceAll("%id", id));
-				ReadableByteChannel rbc = Channels.newChannel(website.openStream());
-				FileOutputStream fos = new FileOutputStream(folder.getAbsolutePath() + "/" + id + downloadExtension);
-				fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-				fos.close();
+			// Skip the page if there are no screenshots or videos
+			// This is used to detect when the last page of screenshots and videos
+			// has been passed
+			while(!htmlString.contains("There are no")){
+				print("Processing game " + game.getKey() + "\n");
+				// Create the directory
+				File folder = new File(downloadPath + "/" + FileNameCleaner.cleanFileName(game.getKey()));
+				folder.mkdirs();
+	
+				// List all the screenshots URLs
+				Pattern patternScreenURL = Pattern.compile("/" + profileURLPath +"/[0-9a-z]+");
+				Matcher matcherScreenURL = patternScreenURL.matcher(htmlString);
+	
+				while (matcherScreenURL.find()) {
+					String id = matcherScreenURL.group().replaceFirst("/"+ profileURLPath + "/", "");
+					// Skip the file if it has already been downloaded
+					if(!new File(folder.getAbsolutePath() + "/" + id + downloadExtension).exists()){
+						// Download the actual screenshot or video depending on the parameter passed
+						URL website = new URL(downloadURLTemplate.replaceAll("%id", id));
+						ReadableByteChannel rbc = Channels.newChannel(website.openStream());
+						FileOutputStream fos = new FileOutputStream(folder.getAbsolutePath() + "/" + id + downloadExtension);
+						fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+						fos.close();
+					} else {
+						print("File " + id + downloadExtension + " already downloaded");
+					}
+				}
+				
+				// Get the next screenshots page
+				htmlString = getStringForURL(BASE_URL + game.getValue() + "?page=" + ++page);
 			}
 		}
 	}
