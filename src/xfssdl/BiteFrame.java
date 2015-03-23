@@ -21,6 +21,9 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.xml.sax.SAXException;
 
 /**
  * Created on 21/03/2015 - 10:57
@@ -36,6 +39,7 @@ public class BiteFrame extends JFrame implements ActionListener, Observer {
 	private JTextField fileInput;
 	private JCheckBox videos;
 	private JCheckBox screens;
+	private JCheckBox appendDescription;
 	private Downloader hook;
 	private JScrollPane scroll;
 	
@@ -54,7 +58,8 @@ public class BiteFrame extends JFrame implements ActionListener, Observer {
 		JPanel pLog = new JPanel(new GridLayout(1, 1)),
 				pUser = new JPanel(new GridLayout(1, 1)),
 				pFile = new JPanel(new GridLayout(1, 1)),
-				pButtons = new JPanel(new GridLayout(1, 4)),
+				pButtons = new JPanel(new BorderLayout()),
+				pCheckboxes = new JPanel(),
 				pControls = new JPanel(new GridLayout(3, 1));
 		
 		logArea = new JTextArea();
@@ -63,33 +68,38 @@ public class BiteFrame extends JFrame implements ActionListener, Observer {
 		
 		JButton folder = new JButton("Select folder"),
 				start = new JButton("Start");
+		folder.setPreferredSize(new Dimension(100, 40));
+		start.setPreferredSize(new Dimension(100, 40));
 		folder.addActionListener(this);
 		start.addActionListener(this);
 		
 		videos = new JCheckBox("Videos");
 		screens = new JCheckBox("Screens");
+		appendDescription = new JCheckBox("Append description");
 		scroll = new JScrollPane(logArea);
 		
 		pLog.setPreferredSize(new Dimension(600, 300));
-		pUser.setPreferredSize(new Dimension(600, 50));
-		pFile.setPreferredSize(new Dimension(600, 50));
-		pButtons.setPreferredSize(new Dimension(600, 50));
-		pControls.setPreferredSize(new Dimension(600, 150));
+		pUser.setPreferredSize(new Dimension(600, 30));
+		pFile.setPreferredSize(new Dimension(600, 30));
+		pButtons.setPreferredSize(new Dimension(600, 30));
+		pControls.setPreferredSize(new Dimension(600, 90));
 		
 		pLog.add(scroll);
 		pUser.add(usernameInput);
 		pFile.add(fileInput);
-		pButtons.add(folder);
-		pButtons.add(screens);
-		pButtons.add(videos);
-		pButtons.add(start);
+		pCheckboxes.add(screens);
+		pCheckboxes.add(videos);
+		//pCheckboxes.add(appendDescription);
+		pButtons.add(folder, BorderLayout.WEST);
+		pButtons.add(pCheckboxes);
+		pButtons.add(start, BorderLayout.EAST);
 		
 		pControls.add(pUser);
 		pControls.add(pFile);
 		pControls.add(pButtons);
 		
-		add(pLog, BorderLayout.SOUTH);
-		add(pControls);
+		add(pLog, BorderLayout.CENTER);
+		add(pControls, BorderLayout.NORTH);
 		
 		hook = downloader;
 		
@@ -113,7 +123,7 @@ public class BiteFrame extends JFrame implements ActionListener, Observer {
 					public void run(){
 						try {
 							hook.startDownload();
-						} catch (IOException | InterruptedException e) {
+						} catch (IOException | InterruptedException | ParserConfigurationException | SAXException e) {
 							e.printStackTrace();
 						}
 					}

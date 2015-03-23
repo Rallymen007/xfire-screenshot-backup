@@ -11,16 +11,21 @@ import java.net.URLConnection;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Observable;
 import java.util.Observer;
-import java.util.Map.Entry;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 public class Downloader extends Observable {
-	private static final String BASE_URL = "http://social.xfire.com";
+	private static final String BASE_URL = "http://classic.xfire.com";
 
 	private String username = null;
 	private String downloadPath = null;
@@ -59,7 +64,7 @@ public class Downloader extends Observable {
 		} catch (Exception e) {}
 	}
 	
-	public void setup() throws MalformedURLException, FileNotFoundException, IOException, InterruptedException {
+	public void setup() throws MalformedURLException, FileNotFoundException, IOException, InterruptedException, ParserConfigurationException, SAXException {
 		if(username == null || downloadPath == null){
 			// Not all the parameters are set, start the UI
 			addObserver(new BiteFrame(this));
@@ -77,90 +82,25 @@ public class Downloader extends Observable {
 		return u != null && d != null && !u.equals("") && !downloadPath.equals("");
 	}
 	
-	public boolean startDownload() throws MalformedURLException, FileNotFoundException, IOException, InterruptedException {
+	public boolean startDownload() throws MalformedURLException, FileNotFoundException, IOException, InterruptedException, ParserConfigurationException, SAXException {
 		if(username == null || downloadPath == null){return false;}
 		
 		if(screens){
-			doDownload("screenshots", "http://screenshot.xfire.com/s/%id-4.jpg", ".jpg");
+			doDownload("screenshots", "screenshot", "id", ".jpg");
 		}
 		
 		if(videos){
-			doDownload("videos", "http://video.xfire.com/%id.mp4", ".mp4");
+			doDownload("user_videos", "video", "videoid", ".mp4");
 		}
 		return true;
 	}
 
-	private void doDownload(String profileURLPath, String downloadURLTemplate, String downloadExtension) throws IOException,
-	InterruptedException, MalformedURLException, FileNotFoundException {
-		String htmlString = getStringForURL(BASE_URL + "/users/" + username + "/" + profileURLPath);
-
-		// regex to match screenshot urls and long names
-		Pattern patternURL = Pattern.compile("/users/" + username + "/games/[A-Za-z0-9]+/" + profileURLPath), 
-				patternTitles = Pattern.compile("<h1>[^\\<]+</h1>");
-		Matcher matcherURL = patternURL.matcher(htmlString), 
-				matcherTitles = patternTitles.matcher(htmlString);
-		Map<String, String> games = new HashMap<String, String>();
+	private void doDownload(String profileURLPath, String xmltag, String idstring, String extension) throws IOException,
+	InterruptedException, MalformedURLException, FileNotFoundException, ParserConfigurationException, SAXException {
+		String url = BASE_URL + "/xml/" + username + "/" + profileURLPath;
 		
-		print("Finding screenshot URLs...");
-		// List all the games found
-		while (matcherURL.find()) {
-			matcherTitles.find();
-			games.put(matcherTitles.group().replaceAll("<[/]?h1>", ""), matcherURL.group());
-		}
-		print("done\n");
-
-		// Print the list of names found
-		String print = "Found " + games.size() + " games -- make sure this is accurate\n";
-		Integer i = 0;
-		for (String e : games.keySet()) {
-			// Stupid print
-			print += e + ((++i % 5 == 0) ? '\n' : '\t');
-		}
-		print(print + "\n");
-
-		for (Entry<String, String> game : games.entrySet()) {
-			// Get the screenshots page
-			htmlString = getStringForURL(BASE_URL + game.getValue());
-			Integer page = 1;
-
-			// Skip the page if there are no screenshots or videos
-			// This is used to detect when the last page of screenshots and videos
-			// has been passed
-			while(!htmlString.contains("There are no")){
-				print("Processing game " + game.getKey() + "\n");
-				// Create the directory
-				File folder = new File(downloadPath + "/" + FileNameCleaner.cleanFileName(game.getKey()));
-				folder.mkdirs();
-	
-				// List all the screenshots URLs
-				Pattern patternScreenURL = Pattern.compile("/" + profileURLPath +"/[0-9a-z]+");
-				Matcher matcherScreenURL = patternScreenURL.matcher(htmlString);
-	
-				while (matcherScreenURL.find()) {
-					String id = matcherScreenURL.group().replaceFirst("/"+ profileURLPath + "/", "");
-					// Skip the file if it has already been downloaded
-					if(!new File(folder.getAbsolutePath() + "/" + id + downloadExtension).exists()){
-						// Download the actual screenshot or video depending on the parameter passed
-						URL website = new URL(downloadURLTemplate.replaceAll("%id", id));
-						ReadableByteChannel rbc = Channels.newChannel(website.openStream());
-						FileOutputStream fos = new FileOutputStream(folder.getAbsolutePath() + "/" + id + downloadExtension);
-						fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
-						fos.close();
-					} else {
-						print("File " + id + downloadExtension + " already downloaded");
-					}
-				}
-				
-				// Get the next screenshots page
-				htmlString = getStringForURL(BASE_URL + game.getValue() + "?page=" + ++page);
-			}
-		}
-	}
-	
-
-	private String getStringForURL(String url) throws IOException, InterruptedException {
+		// Retrieve XML data
 		URLConnection connection;
-		String htmlString;
 		InputStream is = null;
 		while (is == null) {
 			try {
@@ -173,17 +113,55 @@ public class Downloader extends Observable {
 			}
 		}
 		print(url + " retrieved successfully\n");
+		
+		// Build the DOM
+		DocumentBuilderFactory objDocumentBuilderFactory = null;
+        DocumentBuilder objDocumentBuilder = null;
+        objDocumentBuilderFactory = DocumentBuilderFactory.newInstance();
+        objDocumentBuilder = objDocumentBuilderFactory.newDocumentBuilder();
+		Document doc = objDocumentBuilder.parse(is);
 
-		// Get the whole data in a String - this avoids losing connection midway through parsing
-		print("Reading URL...");
-		java.util.Scanner sc = new java.util.Scanner(is);
-		sc.useDelimiter("\\A");
-		htmlString = sc.hasNext() ? sc.next() : "";
-		sc.close();
-		is.close();
-		print("done\n");
-		return htmlString;
+		NodeList nl = doc.getElementsByTagName(xmltag);
+		print("Found " + nl.getLength() + " "+ xmltag + "s\n");
+		
+		for (Integer index = 0; index < nl.getLength(); index++) {
+			Node n = nl.item(index);
+			if(n instanceof Element){
+				Element game = (Element) n;
+				String gameName = game.getElementsByTagName("game").item(0).getTextContent(),
+						id = game.getElementsByTagName(idstring).item(0).getTextContent();
+								
+				print("Processing " + xmltag + " id " + id + " for " +  gameName  + "\n");
+				
+				// Create the directory
+				File folder = new File(downloadPath + "/" + FileNameCleaner.cleanFileName(gameName));
+				if(!folder.exists()) {
+					folder.mkdirs();
+				}
+				
+				String contentURL = "";
+				if(xmltag.equals("screenshot")){
+					contentURL = game.getElementsByTagName("url").item(4).getTextContent();
+				} else {
+					contentURL = game.getElementsByTagName("raw_url").item(0).getTextContent();
+				}
+				String completeFilePath = folder.getAbsolutePath() + "/" + id + extension;
+				
+				// Skip the file if it has already been downloaded
+				if(!new File(completeFilePath).exists()){
+					// Download the actual screenshot or video depending on the parameter passed
+					URL website = new URL(contentURL);
+					ReadableByteChannel rbc = Channels.newChannel(website.openStream());
+					FileOutputStream fos = new FileOutputStream(completeFilePath);
+					fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+					fos.close();
+				} else {
+					print("File " + completeFilePath + " already downloaded");
+				}
+			}
+		}
 	}
+	
 	
 	private void eprint(String s){
 		print("ERROR : " + s);
