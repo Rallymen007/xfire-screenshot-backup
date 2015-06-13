@@ -25,7 +25,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public class Downloader extends Observable {
-	private static final String BASE_URL = "http://classic.xfire.com";
+	private static final String BASE_URL = "http://temp.xfire.com";
 
 	private String username = null;
 	private String downloadPath = null;
